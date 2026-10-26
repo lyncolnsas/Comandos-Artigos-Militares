@@ -1,0 +1,40 @@
+import jwt from 'jsonwebtoken';
+
+const getJwtSecret = () => {
+  if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+    throw new Error('FATAL SECURITY ERROR: JWT_SECRET must be configured in production!');
+  }
+  return process.env.JWT_SECRET || 'comandos-store-super-secret-jwt-key-2026';
+};
+
+export const verifyToken = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Acesso não autorizado. Token JWT ausente.' });
+  }
+
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, getJwtSecret());
+    req.user = decoded;
+    next();
+  } catch (error) {
+    console.error('JWT Verify Error:', error.message);
+    return res.status(401).json({ error: 'Token inválido ou expirado.' });
+  }
+};
+
+export const requireRole = (roles = []) => {
+  const allowedRoles = Array.isArray(roles) ? roles : [roles];
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Usuário não autenticado.' });
+    }
+
+    if (allowedRoles.length > 0 && !allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Acesso negado. Permissão insuficiente.' });
+    }
+
+    next();
+  };
+};
